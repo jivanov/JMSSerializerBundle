@@ -167,12 +167,18 @@ class XmlDeserializationVisitor extends AbstractDeserializationVisitor
             $this->result = &$result;
         }
 
-        foreach ($data->$entryName as $v) {
-            if (!isset($v[$this->currentMetadata->xmlKeyAttribute])) {
+        $entryNameData = isset($v[$this->currentMetadata->xmlKeyAttribute]) ? $data->$entryName : (array) $data->$entryName;
+        foreach ($entryNameData as $key => $v) {
+            if ($this->currentMetadata->xmlKeyValuePairs && !isset($v[$this->currentMetadata->xmlKeyAttribute])) {
+                $k = $key;
+            }           
+            else if (isset($v[$this->currentMetadata->xmlKeyAttribute])) {
+                $k = $this->navigator->accept($v[$this->currentMetadata->xmlKeyAttribute], $keyType, $this);                
+            }
+            else {
                 throw new RuntimeException(sprintf('The key attribute "%s" must be set for each entry of the map.', $this->currentMetadata->xmlKeyAttribute));
             }
 
-            $k = $this->navigator->accept($v[$this->currentMetadata->xmlKeyAttribute], $keyType, $this);
             $result[$k] = $this->navigator->accept($v, $entryType, $this);
         }
 
@@ -225,6 +231,17 @@ class XmlDeserializationVisitor extends AbstractDeserializationVisitor
 
             $this->setCurrentMetadata($metadata);
             $v = $this->navigator->accept($enclosingElem, $metadata->type, $this);
+            $this->revertCurrentMetadata();
+            $metadata->reflection->setValue($this->currentObject, $v);
+
+            return;
+        }
+        
+        if ($metadata->xmlKeyValuePairs) {
+            $metadata->xmlEntryName = $name;
+            $this->setCurrentMetadata($metadata);
+
+            $v = $this->navigator->accept($data, $metadata->type, $this);
             $this->revertCurrentMetadata();
             $metadata->reflection->setValue($this->currentObject, $v);
 
